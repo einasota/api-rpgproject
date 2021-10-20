@@ -13,5 +13,8 @@
             "username": "root",
             "password": "81758321"
         }
+    ],
+    "cSpell.ignoreWords": [
+        "Middlewares"
     ]
 }
