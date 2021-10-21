@@ -13,5 +13,6 @@ routes
     .post('/register', AuthController.create)
     .post('/login', AuthController.login)
     .post('/forgot_password', AuthController.recovery)
+    .post('/reset_password', AuthController.reset)
 
 export default routes;

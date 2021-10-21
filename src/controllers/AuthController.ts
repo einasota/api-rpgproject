@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs"
 import jwt from "jsonwebtoken"
 import crypto from "crypto"
 import mailer from '../config/mailer'
+import path from "path"
 // const AuthConfig =  require("../config/auth")
 
 function generateToken(params = {}){
@@ -47,22 +48,50 @@ export default {
         try {
             const { email } = req.body
             const user = await knex('users').select('email').where({ email: email})
+            if(!user[0].email){
+                return res.status(404).send({ error: 'User not found' })
+            }
             const token = crypto.randomBytes(20).toString('hex');
             const now = new Date();
-            now.setHours(now.getHours() + 1)
-            await knex('users').select({id: user[0].id}).update({passwordResetToken: token}, {passwordResetExpires: now})
+            now.setHours(now.getHours() + 5)
+            await knex('users').select({id: user[0].id}).update({passwordResetToken: token, passwordResetExpires: now})
             console.log(token, now)
             mailer.sendMail({
                 to: email,
                 from: 'suporte@rpg-project.com',
-                template: 'forgot_password',
-                context: {token}
+                html: `Você esqueceu sua senha? Não tem problema.
+                Utilize esse token para criar uma nova senha.
+                ${token}`
             }, (err) => { if(err){
+                console.log(err)
                 return res.status(400).send({error:"Cannot send forgot password email"})
             }})
             res.send()
         } catch (error) {
             next(error)
+        }
+    },
+    async reset (req: Request, res: Response, next: NextFunction){
+        try {
+            const { email, password, token } = req.body
+            const user = await knex('users').select().where({email})
+            console.log(user[0])
+            if(!user[0].email){
+                return res.status(404).send({ error: 'User not found' })
+            }
+            if(token !== user[0].passwordResetToken){
+                return res.status(400).send({ error: 'Token is invalid' })
+            }
+            const now = new Date();
+
+            if(now > user[0].passwordResetExpires) {
+                return res.status(400).send({ error: 'Token Expired, generate a new token' })
+            }
+            const encrypted = await bcrypt.hash(password, 10)
+            await knex('users').update({ password: encrypted, passwordResetToken: null, passwordResetExpires: null}).where({id: user[0].id})
+            res.status(200).send()
+        } catch (error) {
+            res.send(400).send({error:"Cannot reset password, try again"})
         }
     }
 }
